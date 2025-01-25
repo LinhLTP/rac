@@ -93,3 +93,120 @@ dtam <- cbind(dtslop, dtslop2$price_incl_tax)
 colnames(dtam)[4] <- 'price_incl_tax'
 dtam <- dtam %>%
   mutate(price_incl_tax = round(price_incl_tax, 1))
+
+# MoM, YoY changes
+## data preparation 
+mydata <- import(here("data", "Weekly_Fuel_Prices_240423.xlsx"), which = "All years", skip = 7)
+
+data <- mydata %>% janitor::clean_names()
+data <- data %>% filter(date > "2004-06-1") # omit NA value 
+
+str(data) # please note: date has POSIXct, format, not as.Date format 
+
+## Calculation for 1 variable only 
+fuelprice <- data %>%
+  mutate(YearMonth = format(date, "%Y-%m")) 
+
+monthly_price <- fuelprice %>%
+  group_by(YearMonth) %>%
+  summarize(MonthlyPrice = mean(ulsp_pump_price_p_litre)) %>%
+  arrange(YearMonth)
+
+monthly_price <- monthly_price[monthly_price$YearMonth >= "2005-01", ] # Have a full year of 12 months. 
+
+monthly_report <- monthly_price %>%
+  mutate(
+    mom = (MonthlyPrice - lag(MonthlyPrice)) / lag(MonthlyPrice),
+    yoy = (MonthlyPrice - lag(MonthlyPrice, 12)) / lag(MonthlyPrice, 12)
+  )
+
+monthly_report <- monthly_report %>%
+  mutate(
+    mom = round(mom * 100, 1),
+    yoy = round(yoy * 100, 1)
+  )
+
+## Calculate for multiple variables
+fuelprice <- data %>%
+  select(c(1:2,7)) %>% 
+  mutate(YearMonth = format(date, "%Y-%m")) # create new column 
+
+fuelprice <- fuelprice[, c(1,4,2,3)] # reorder column
+
+str(fuelprice)
+
+monthly_price <- fuelprice %>%
+  group_by(YearMonth) %>%
+  summarise(across(c(ulsp_pump_price_p_litre, ulsd_pump_price_p_litre), ~ mean(.x, na.rm = TRUE), .names = "mean_{.col}")) %>%
+  arrange(YearMonth)
+
+monthly_price <- monthly_price[monthly_price$YearMonth >= "2005-01", ] # Have a full year of 12 months. 
+
+monthly_report <- 
+  monthly_price %>%
+  mutate(across(c("mean_ulsp_pump_price_p_litre", "mean_ulsd_pump_price_p_litre"),list(mom = ~(. - lag(., 1))/lag(., 1)))*100) %>%
+  mutate(across(c("mean_ulsp_pump_price_p_litre", "mean_ulsd_pump_price_p_litre"), list(yoy = ~(. - lag(., 12))/lag(., 12)))*100)
+
+monthly_report_2 <- 
+  monthly_price %>%  # option 2
+  mutate(across(c("mean_ulsp_pump_price_p_litre", "mean_ulsd_pump_price_p_litre"), ~(. - lag(., 1))/lag(., 1), .names = "mom_{.col}")) %>%
+  mutate(across(c("mean_ulsp_pump_price_p_litre", "mean_ulsd_pump_price_p_litre"), ~(. - lag(., 12))/lag(., 12), .names = "yoy_{.col}"))
+
+monthly_report <- 
+  monthly_report %>%
+  mutate(across(where(is.numeric), ~round(., 2))) # rounding 
+
+monthly_report <- monthly_report[, c(1,2,4,6,3,5,7)]  # reorder cols 
+
+col_names <- list("year_month",    # rename cols 
+                  "ulsp_m_price", 
+                  "ulsp_mom", 
+                  "ulsp_yoy",
+                  "ulsd_m_price", 
+                  "ulsd_mom", 
+                  "ulsd_yoy")
+
+colnames(monthly_report) <- c(col_names)
+
+## Viz with table 
+monthly_report_kable <- monthly_report. 
+
+kbl(monthly_report_kable) %>%
+  kable_classic() %>%
+  add_header_above(c(" " = 1, "ULSP" = 3, "ULSD" = 3)) %>%  # Add header rows to group columns
+  footnote(general = "Data is retrieved from GOV.UK on 30 Apr 2023. ",
+           footnote_as_chunk = T, title_format = c("italic", "underline")) %>% 
+  scroll_box(width = "100%", height = "200px")
+
+monthly_report_kable$ulsp_mom <- cell_spec(monthly_report_kable$ulsp_mom,   # highlight in text 
+                                           color = ifelse(is.na(monthly_report_kable$ulsp_mom), "lightgrey",
+                                                          ifelse(monthly_report_kable$ulsp_mom < 0, "red", "blue"))
+)
+
+kbl(monthly_report_kable, escape = F) %>% # display table 
+  kable_paper("striped", full_width = F) %>% 
+  scroll_box(width = "100%", height = "200px")
+
+formattable(  # format 
+  head(monthly_report, 15),
+  align = c("l", rep("r", NCOL(monthly_report) - 1)), # format column to left / right aligment 
+  list(`year_month` = formatter("span", style = ~ style(color = "grey",font.weight = "bold")))
+)
+
+diff_formatter <- 
+  formatter("span", style = x ~ style(color = ifelse(x > 0, "#71CA97", ifelse(x < 0, "red", "black")),"font.size" = "12px"),
+            x ~ icontext(ifelse(x>0, "arrow-up", ifelse(x<0, "arrow-down", "")), x))
+
+formattable(
+  head(monthly_report, 15), # if not using head, the table will be long
+  align = c("l", rep("r", NCOL(monthly_report) - 1)), 
+  list(
+    `year_month` = formatter("span", style = ~ style(color = "grey",font.weight = "bold")),
+    `ulsp_m_price` = color_tile("#DeF7E9", "#71CA97"),
+    `ulsd_m_price` = color_tile("#DeF7E9", "#71CA97"),
+    `ulsp_mom` = diff_formatter,
+    `ulsd_mom` = diff_formatter,
+    `ulsp_yoy` = diff_formatter,
+    `ulsd_yoy` = diff_formatter)
+)
+
