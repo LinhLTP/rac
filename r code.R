@@ -1,4 +1,4 @@
-# Load required packages using pacman
+#--- Load required packages using pacman
 pacman::p_load(
   rio,           # Import/export data
   here,          # Manage file paths
@@ -24,10 +24,10 @@ pacman::p_load(
   viridis        # Colour palettes for better perceptual design
 )
 
-# Import data
+#--- Import data
 mydata <- import(here("data", "table_511_and_521.xlsx"), which = "5.1.1 (excl tax)", skip = 7)  
 
-# Data cleaning
+#--- Data cleaning
 ## Price excl tax 
 data <- mydata %>% janitor::clean_names()   # clean cols name 
 colnames(data)[18] <- 'UK'                  # rename 
@@ -88,13 +88,13 @@ dtslop2 <- data2 %>%
 
 dtslop2$price_incl_tax <- round(dtslop2$price_incl_tax, 0)
 
-# Other data cleaning 
+#--- Other data cleaning 
 dtam <- cbind(dtslop, dtslop2$price_incl_tax) 
 colnames(dtam)[4] <- 'price_incl_tax'
 dtam <- dtam %>%
   mutate(price_incl_tax = round(price_incl_tax, 1))
 
-# MoM, YoY changes
+#--- MoM, YoY changes
 ## data preparation 
 mydata <- import(here("data", "Weekly_Fuel_Prices_240423.xlsx"), which = "All years", skip = 7)
 
@@ -210,3 +210,318 @@ formattable(
     `ulsd_yoy` = diff_formatter)
 )
 
+#--- Time Series Plot for USLP: Pump price (p/litre)
+
+mydata <- import(here("data", "Weekly_Fuel_Prices_240423.xlsx"), 
+                 which = "All years", 
+                 skip = 7)
+
+data <- mydata %>% janitor::clean_names()
+data <- data %>% filter(date > "2004-06-1")
+
+str(data)
+
+## by year 
+g1 <- ggplot(data, aes(x = date, y = ulsp_pump_price_p_litre)) +
+  geom_line() +
+  labs(title = "ULSP:  Pump price (p/litre)",
+       caption = "Source: GOV.UK 2023",
+       x = "Year",
+       y = "p/litre") +
+  theme_classic() +
+  annotate(geom = "text",
+           x = as.POSIXct("2008-08-25", origin="1970-01-01"), y = 70,
+           label = "2008\nEconomic Crisis?",
+           family = "Arial Narrow",
+           colour = "red",
+           size = 3, fontface = "bold") +
+  annotate(geom = "rect",
+           xmin = as.POSIXct("2008-08-25", origin="1970-01-01"), xmax = as.POSIXct("2009-08-25", origin="1970-01-01"),
+           ymin = -Inf, ymax = Inf,
+           fill = "grey80", alpha = .4)
+g1
+
+ggplot(data, aes(x = date, y = ulsp_pump_price_p_litre)) +
+  geom_line(color="#69b3a2") +
+  labs(title = "ULSP:  Pump price (p/litre)",
+       caption = "Source: GOV.UK 2023",
+       x = "Year",
+       y = "p/litre") +
+  theme_classic() +
+  annotate(geom = "text",
+           x = as.POSIXct("2008-08-25", origin="1970-01-01"), y = 70,
+           label = "2008\nEconomic Crisis?",
+           family = "Arial Narrow",
+           colour = "red",
+           size = 3, fontface = "bold") +
+  annotate(geom = "rect",
+           xmin = as.POSIXct("2008-08-25", origin="1970-01-01"), xmax = as.POSIXct("2009-08-25", origin="1970-01-01"),
+           ymin = -Inf, ymax = Inf,
+           fill = "grey80", alpha = .4) +
+  annotate(geom="text", x=as.POSIXct("2022-07-04"), y=191.5466, label="Price reached 191$ at mid of 2022", color = "blue", angle = 0,
+           hjust = 1.0, vjust = 0.1) +
+  annotate(geom="point", x=as.POSIXct("2022-07-04"), y=191.5466, size=6, shape=21, fill="transparent") 
+
+# by day, week, month, year
+data$year <- year(data$date)
+# data$date has POSIXct format, so we need to change it into date format for scale_x_date()
+data$date <- as.Date(data$date, format = "%Y-%m-%d") 
+ggplot(data, aes(x = date, y = ulsp_pump_price_p_litre)) +
+  geom_line(color="#69b3a2") +
+  facet_wrap(~year, scales = "free") +
+  scale_x_date(date_labels = "%b")
+
+x <- data   # select recent year 
+x <- x[x$date >= as.Date("2013-01-01"), ]
+x$date <- as.Date(x$date, format = "%Y-%m-%d")
+
+ggplot(x, aes(x = date, y = ulsp_pump_price_p_litre)) +
+  geom_line(color="#69b3a2") +
+  facet_wrap(~year, scales = "free") +
+  scale_x_date(date_labels = "%b")
+
+g2 <- ggplot(data, aes(date, ulsp_pump_price_p_litre, color = ulsp_pump_price_p_litre)) +  
+  geom_line(show.legend = T) +
+  scale_colour_gradient(low = "blue", high = "orange") +  # add color to line 
+  labs(title = "ULSP:  Pump price (p/litre)",
+       subtitle = "Weekly Prices time series (from 2003)",
+       caption = "Source: GOV.UK 2023",
+       x = "Year",
+       y = "p/litre")+
+  theme_classic()
+g2
+
+g2 <- ggplot(data, aes(x = date, y = ulsp_diff_on_previous_week_p_litre)) +
+  geom_line() +
+  labs(title = "ULSP:  Pump price (p/litre)",
+       subtitle="Diff on previous WEEK (p/litre)",
+       caption = "Source: GOV.UK",
+       x = "Year",
+       y = "p/litre") +
+  theme_classic()
+
+g2
+
+g3 <- ggplot(data, aes(date, ulsp_diff_on_previous_year_p_litre)) +
+  geom_line() +
+  labs(title = "ULSP:  Pump price (p/litre)",
+       subtitle = "Diff on previous  YEAR (p/litre)",
+       caption = "Source: GOV.UK 2023",
+       x = "Year",
+       y = "p/litre") +
+  theme_classic()
+
+g3
+
+## combination time series data & diff
+g1 <- ggplot(data, aes(x = date, y = ulsp_pump_price_p_litre)) +
+  geom_line() +
+  labs(title    = "ULSP:  Pump price (p/litre)",
+       subtitle = "Weekly Prices time series (from 2003)",
+       y        = "p/litre") + 
+  theme_classic() + 
+  theme_update(axis.title.x = element_blank()) 
+
+g2 <- ggplot(data, aes(x = date, y = ulsp_diff_on_previous_week_p_litre)) +
+  geom_line() +
+  labs(subtitle  ="Diff on previous WEEK (p/litre)",
+       y         = "p/litre") + 
+  theme_classic() + 
+  theme_update(axis.title.x = element_blank()) 
+
+g3 <- ggplot(data, aes(date, ulsp_diff_on_previous_year_p_litre)) +
+  geom_line() +
+  labs(subtitle  = "Diff on previous  YEAR (p/litre)",
+       y         = "p/litre") + 
+  theme_classic() + 
+  theme_update(axis.title.x = element_blank())
+
+ggpubr::ggarrange(g1,  # First row with line plot
+                  ggarrange(g2, g3, ncol = 2, labels = c("B", "C")), # Second row with box and dot plots
+                  nrow   = 2,
+                  labels = "A"
+) 
+
+#-- Time series plot for ULSD: Pump price (p/litre)
+g1 <- ggplot(data, aes(x = date, y = ulsd_pump_price_p_litre)) +
+  geom_line() +
+  labs(title = "ULSD: Pump price (p/litre)",
+       caption = "Source: GOV.UK 2023",
+       x = "Year",
+       y = "p/litre") +
+  theme_classic() +
+  annotate(geom = "text",
+           x = as.Date("2008-08-25", format = "%Y-%m-%d"), y = 70, 
+           label = "2008\nEconomic Crisis?",
+           family = "Arial Narrow",
+           colour = "red",
+           size = 3, fontface = "bold") +
+  annotate(geom = "rect",
+           xmin = as.Date("2008-08-25", format = "%Y-%m-%d"), xmax = as.Date("2009-08-25", format = "%Y-%m-%d"),
+           ymin = -Inf, ymax = Inf,
+           fill = "grey80", alpha = .4)
+g1
+
+g2 <- ggplot(data, aes(x = date, y = ulsd_diff_on_previous_week_p_litre)) +
+  geom_line() +
+  labs(title = "ULSD:  Pump price (p/litre)",
+       subtitle="Diff on previous WEEK (p/litre)",
+       caption = "Source: GOV.UK",
+       x = "Year",
+       y = "p/litre") +
+  theme_classic()
+g2
+
+g3 <- ggplot(data, aes(date, ulsd_diff_on_previous_year_p_litre)) +
+  geom_line() +
+  labs(title = "ULSD:  Pump price (p/litre)",
+       subtitle = "Diff on previous  YEAR (p/litre)",
+       caption = "Source: GOV.UK 2023",
+       x = "Year",
+       y = "p/litre") +
+  theme_classic()
+
+g3
+
+## combine time series and diff 
+g1 <- ggplot(data, aes(x = date, y = ulsd_pump_price_p_litre)) +
+  geom_line() +
+  labs(title    = "ULSD:  Pump price (p/litre)",
+       subtitle = "Weekly Prices time series (from 2003)",
+       y        = "p/litre") + 
+  theme_classic() + 
+  theme_update(axis.title.x = element_blank()) 
+
+
+g2 <- ggplot(data, aes(x = date, y = ulsd_diff_on_previous_week_p_litre)) +
+  geom_line() +
+  labs(subtitle  ="Diff on previous WEEK (p/litre)",
+       y         = "p/litre") + 
+  theme_classic() + 
+  theme_update(axis.title.x = element_blank()) 
+
+
+g3 <- ggplot(data, aes(date, ulsd_diff_on_previous_year_p_litre)) +
+  geom_line() +
+  labs(subtitle  = "Diff on previous  YEAR (p/litre)",
+       y         = "p/litre") + 
+  theme_classic() + 
+  theme_update(axis.title.x = element_blank()) 
+ggpubr::ggarrange(g1,  # First row with line plot
+                  ggarrange(g2, g3, ncol = 2, labels = c("B", "C")), # Second row with box and dot plots
+                  nrow   = 2,
+                  labels = "A"
+) 
+
+#--- Comparison of ULSP & ULSD
+dt <- data
+dt1 <- dt %>% select(c(1:6))
+str(dt1)
+
+dt1 <- dt1 %>%
+  add_column(fuel_type = "ULSP") %>% rename("pump_price"   = "ulsp_pump_price_p_litre",   # new = old 
+                                            "diff_week"    = "ulsp_diff_on_previous_week_p_litre",
+                                            "diff_year"    = "ulsp_diff_on_previous_year_p_litre",
+                                            "duty_rate"    = "duty_rate_ulsp_p_litre",
+                                            "vat_per_rate" = "vat_percent_rate_ulsp")
+
+dt2 <- dt %>% select(1, 7:11)
+dt2 <- dt2 %>%
+  add_column(fuel_type = "ULSD") %>% rename("pump_price"   = "ulsd_pump_price_p_litre",
+                                            "diff_week"    = "ulsd_diff_on_previous_week_p_litre",
+                                            "diff_year"    = "ulsd_diff_on_previous_year_p_litre",
+                                            "duty_rate"    = "duty_rate_ulsd_p_litre",
+                                            "vat_per_rate" = "vat_percent_rate_ulsd")
+
+dt <- bind_rows(dt1, dt2)
+
+dt$fuel_type <- as.factor(dt$fuel_type)
+str(dt)
+
+
+#--- Compare ULSP vs ULSD 
+g1 <- ggplot(dt, aes(date, pump_price, color = fuel_type)) +  # using linetype = 
+  geom_line(show.legend = FALSE) +
+  labs(title    = "Pump price",
+       subtitle = "Weekly Prices time series (from 2023): ULSP vs ULSD",
+       y        = "p/litre",
+       x        = "date") + 
+  theme_classic() +
+  theme_update(axis.title.x = element_blank())
+
+g2 <- ggplot(data, aes(x = date, y = ulsp_pump_price_p_litre)) +
+  geom_line(color = "lightblue") +
+  labs(title    = "ULSP:  Pump price",
+       y        = "p/litre",
+       x        = "date") + 
+  theme_classic() +
+  theme_update(axis.title.x = element_blank())
+
+g3 <- ggplot(data, aes(x = date, y = ulsd_pump_price_p_litre)) +
+  geom_line(color = "red") +
+  labs(title = "ULSD: Pump price",
+       y        = "p/litre",
+       x        = "date",
+       caption = "https://www.gov.uk/government/statistics/weekly-road-fuel-prices") + 
+  theme_classic() +
+  theme_update(axis.title.x = element_blank())
+
+gridExtra::grid.arrange(g1, g2, g3, ncol = 1, nrow = 3) # arrange plot in 1 same page
+
+## Trend by month per year from 2003 - 2023 
+data <- mydata %>% janitor::clean_names()
+df <- data %>% filter(date >= "2004-01-05" & date <= "2023-01-05")
+df <- df %>% select(c(1:2))
+
+df <- df %>% dplyr::mutate(year = lubridate::year(date), 
+                           month = lubridate::month(date), 
+                           day = lubridate::day(date)
+)
+
+df$date <- as.Date(df$date, format = "%Y-%m-%d") 
+
+df$week <- isoweek(ymd(df$date)) # calculate number of week 
+
+df <- df %>% 
+  group_by(week) %>% 
+  mutate(year_week = first(date))  # week of month 
+
+df %>%  # viz
+  ggplot(aes(year_week, ulsp_pump_price_p_litre, color = factor(year))) +
+  geom_line() +
+  scale_x_date(date_breaks="1 month", date_labels="%b") + 
+  geom_label(aes(label = factor(year)),
+             data = df %>% group_by(year) %>% filter(date == max(date)),
+             nudge_x = 0.35,
+             size = 4)+
+  labs(title = "ULSP:  Pump price (p/litre)",
+       caption = "Source: GOV.UK 2023",
+       x = " ",
+       y = "p/litre") +
+  theme_classic() +
+  theme(legend.position="none")
+
+## data table (tibble)
+df_q <- data %>% select(c(1:2))
+
+df_q <- df_q %>%
+  group_by(quarter = zoo::as.yearqtr(date)) %>% # date to quater 
+  summarise(mp = median(ulsp_pump_price_p_litre), .groups = 'drop') %>%   
+  mutate(diff= lead(mp) - mp)
+
+df_q$quarter <- as.character(df_q$quarter) 
+a <- stringr::str_split_fixed(df_q$quarter, " ", 2) 
+df_q <- cbind(a, df_q)
+
+names(df_q)[1] <- "year"
+names(df_q)[2] <- "quater"
+df_q$quarter <- NULL
+
+df_w <- df_q %>% 
+  pivot_wider(names_from = quater, 
+              values_from = c(mp, diff),
+              values_fill = 0)
+
+df_w <- df_w %>% mutate(across(where(is.numeric), ~round(., 1)))
+
+head(df_w, 10)
